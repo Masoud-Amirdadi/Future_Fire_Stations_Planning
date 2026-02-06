@@ -1,0 +1,318 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Raster Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+        }
+
+        #map {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+        }
+
+        /* LEFT CONTROL PANEL */
+        #layerToggle {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            z-index: 1000;
+            width: 300px;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: #fff;
+            padding: 14px 16px;
+            border-radius: 0 14px 14px 0;
+            box-shadow: 4px 0 14px rgba(0,0,0,0.2);
+            font-size: 13px;
+        }
+
+            #layerToggle.collapsed {
+                height: 44px;
+                overflow: hidden;
+            }
+
+                #layerToggle.collapsed #panelContent {
+                    display: none;
+                }
+
+        #toggleUI {
+            width: 100%;
+            margin-bottom: 8px;
+            padding: 6px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        #layerToggle label {
+            display: block;
+            padding: 6px 0;
+        }
+
+        #layerToggle input[type="range"] {
+            width: 100%;
+        }
+
+        #weights div {
+            margin-top: 6px;
+        }
+
+        #weights span {
+            float: right;
+            font-weight: 700;
+            font-size: 12px;
+            min-width: 42px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* LEGEND */
+        .ui-legend {
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
+
+            .ui-legend strong {
+                display: block;
+                margin-bottom: 6px;
+                font-size: 13px;
+            }
+
+        .legend-gradient {
+            height: 16px;
+            border: 1px solid #aaa;
+            margin-bottom: 6px;
+            background: linear-gradient( to right, #30123b, #4145ab, #2db9cb, #f6f65a, #f28024, #800000 );
+        }
+
+        .legend-scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+        }
+
+        /* RIGHT CHART PANEL */
+        #chartPanel {
+            position: fixed;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            z-index: 1000;
+            width: 360px;
+            max-height: 90vh;
+            overflow: hidden;
+            background: #fff;
+            padding: 14px 16px;
+            border-radius: 14px 0 0 14px;
+            box-shadow: -4px 0 14px rgba(0,0,0,0.2);
+            font-size: 13px;
+            display: none;
+        }
+
+        #chartTitle {
+            font-weight: 700;
+            margin: 0 0 8px 0;
+        }
+
+        #chartSubtitle {
+            margin: 0 0 10px 0;
+            color: #555;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+
+        #chartWrap {
+            height: 260px;
+        }
+
+        #chartCanvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        .chart-toggle-bottom {
+            font-size: 10px;
+            line-height: 1;
+            color: #777;
+            text-align: right;
+            cursor: pointer;
+            margin-top: 4px;
+            padding: 0;
+            user-select: none;
+        }
+
+            .chart-toggle-bottom:hover {
+                color: #000;
+                text-decoration: underline;
+            }
+      
+    </style>
+
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <div id="chartPanel">
+        <div id="toggleCharts" class="chart-toggle-bottom">
+            Hide charts
+        </div>
+
+        <div id="chartTitle"></div>
+
+        <div id="chartSubtitle"></div>
+
+        
+        <!-- 1️⃣ Coverage Drive-Time (minutes) -->
+        <div id="chartWrap_drive_coverage" style="height:180px; display:none;">
+            <canvas id="chart_drive_coverage"></canvas>
+        </div>
+
+        <!-- 2️⃣ Composite Drive-Time (minutes) -->
+        <div id="chartWrap_drive_composite" style="height: 180px; display: none; margin-top: 14px;">
+            <canvas id="chart_drive_composite"></canvas>
+        </div>
+
+
+        <!-- 2. High/Very High (21–24) -->
+        <div id="chartWrap_2124" style="height: 180px; display: none; margin-top: 14px;">
+            <canvas id="chart_2124"></canvas>
+        </div>
+
+        <!-- 3. High/Very High (24–27) -->
+        <div id="chartWrap_2427" style="height: 180px; display: none; margin-top: 14px;">
+            <canvas id="chart_2427"></canvas>
+        </div>
+    </div>
+
+    <div id="layerToggle">
+        <button id="toggleUI">☰ Layers & Controls</button>
+
+        <div id="panelContent">
+
+            <!-- VECTORS -->
+            <label>
+                <input type="checkbox" id="chkStations" checked>
+                Fire Stations
+            </label>
+
+            <label>
+                <input type="checkbox" id="chkCoverage">
+                Fire Stations Service Coverage
+            </label>
+
+            <hr>
+
+            <!-- RASTERS -->
+            <strong>Input Layers</strong>
+
+            <label><input type="radio" name="r" value="Incidents Heatmap"> Incidents Heatmap</label>
+            <label><input type="radio" name="r" value="Incidents Response Time"> Incidents Response Time</label>
+            <label><input type="radio" name="r" value="Number of Trucks Dispatched to Incidents"> Number of Trucks</label>
+            <label><input type="radio" name="r" value="Population Density"> Population Density</label>
+            <label><input type="radio" name="r" value="Fire Hydrants"> Fire Hydrants</label>
+            <label><input type="radio" name="r" value="Land Use Risk"> Land Use Risk</label>
+            <label><input type="radio" name="r" value="Road Mobility"> Road Mobility</label>
+
+            <hr>
+
+            <strong>Composite Layers</strong>
+
+            <label><input type="radio" name="r" value="CRITIC Composite"> CRITIC Composite</label>
+            <label><input type="radio" name="r" value="Random Forest Composite"> Random Forest Composite</label>
+            <label><input type="radio" name="r" value="XGBoost Composite"> XGBoost Composite</label>
+            <label><input type="radio" name="r" value="__COMPOSITE__"> Manual Composite Raster</label>
+
+            <!-- MANUAL WEIGHTS -->
+            <div id="weights" style="display:none">
+                <div>Incidents Heatmap<input type="range" min="0" max="1" step="0.01" value="0.25" data-key="Incidents Heatmap"><span data-out="Incidents Heatmap">0.25</span></div>
+                <div>Response Time <input type="range" min="0" max="1" step="0.01" value="0.10" data-key="Incidents Response Time"><span data-out="Incidents Response Time">0.10</span></div>
+                <div>Trucks <input type="range" min="0" max="1" step="0.01" value="0.15" data-key="Number of Trucks Dispatched to Incidents"><span data-out="Number of Trucks Dispatched to Incidents">0.15</span></div>
+                <div>Population Density <input type="range" min="0" max="1" step="0.01" value="0.25" data-key="Population Density"><span data-out="Population Density">0.25</span></div>
+                <div>Fire Hydrants <input type="range" min="0" max="1" step="0.01" value="0.15" data-key="Fire Hydrants"><span data-out="Fire Hydrants">0.15</span></div>
+                <div>Land Use Risk <input type="range" min="0" max="1" step="0.01" value="0.10" data-key="Land Use Risk"><span data-out="Land Use Risk">0.10</span></div>
+                <div>Road Mobility <input type="range" min="0" max="1" step="0.01" value="0.20" data-key="Road Mobility"><span data-out="Road Mobility">0.20</span></div>
+
+
+
+            </div>
+
+            <!-- LEGENDS -->
+            <div id="legend" class="ui-legend">
+
+                <div id="raster-legend">
+                    <strong id="legend-title">Raster</strong>
+                    <div class="legend-gradient"></div>
+                    <div class="legend-scale">
+                        <span id="legend-min">0.00</span>
+                        <span id="legend-max">1.00</span>
+                    </div>
+                </div>
+
+                <div id="vector-legend" style="margin-top:14px">
+                    <strong>Fire Stations</strong>
+
+                    <div>
+                        <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #111;margin-right:6px"></span>
+                        Existing
+                    </div>
+
+                    <div>
+                        <span style="display:inline-block;width:14px;height:14px;background:#1e90ff;border:1px solid #111;margin-right:6px"></span>
+                        Committed
+                    </div>
+
+                    <div>
+                        <span style="display:inline-block;width:14px;height:14px;background:#2ecc71;border:1px solid #111;margin-right:6px"></span>
+                        Planned
+                    </div>
+
+                    <div id="coverage-legend" style="margin-top:12px; display:none">
+                        <strong>Drive Time (minutes)</strong>
+                        <div><span style="display:inline-block;width:14px;height:14px;background:#ff2f92;margin-right:6px"></span>0 – 4</div>
+                        <div><span style="display:inline-block;width:14px;height:14px;background:#ff7bbd;margin-right:6px"></span>4 – 6</div>
+                        <div><span style="display:inline-block;width:14px;height:14px;background:#ffd1e6;margin-right:6px"></span>6+</div>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
+            <!-- GLOBAL RASTER KILL SWITCH -->
+            <label>
+                <input type="checkbox" id="chkHideRasters">
+                Hide all rasters
+            </label>
+
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+
+    <script>
+        document.getElementById('toggleUI').addEventListener('click', () => {
+            document.getElementById('layerToggle').classList.toggle('collapsed');
+            setTimeout(() => {
+                if (window.map) window.map.invalidateSize(true);
+            }, 200);
+        });
+    </script>
+
+</body>
+</html>
